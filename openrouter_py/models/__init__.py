@@ -3,6 +3,7 @@
 from .balance import Credits, CreditsData
 from .chat import ChatCompletion, ChatCompletionChoice, ChatCompletionUsage, ChatMessage
 from .model import Model, ModelData
+from .streaming import StreamChunk, StreamChoice
 
 __all__ = [
     "ChatMessage",
@@ -13,5 +14,7 @@ __all__ = [
     "ModelData",
     "Credits",
     "CreditsData",
+    "StreamChunk",
+    "StreamChoice",
 ]
 

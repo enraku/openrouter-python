@@ -1,8 +1,8 @@
-"""OpenRouter API client."""
+"""Async OpenRouter API client."""
 
 import json
 import os
-from collections.abc import Iterator, Sequence
+from collections.abc import AsyncIterator, Sequence
 from typing import Any
 
 import httpx
@@ -23,8 +23,8 @@ from ..models.model import Model
 from ..models.streaming import StreamChunk
 
 
-class OpenRouterClient:
-    """Client for interacting with the OpenRouter API."""
+class AsyncOpenRouterClient:
+    """Async client for interacting with the OpenRouter API."""
 
     def __init__(
         self,
@@ -32,7 +32,7 @@ class OpenRouterClient:
         base_url: str = "https://openrouter.ai/api/v1",
         timeout: float = 30.0,
     ) -> None:
-        """Initialize the OpenRouter client.
+        """Initialize the async OpenRouter client.
 
         Args:
             api_key: OpenRouter API key. If not provided, will look for
@@ -50,7 +50,7 @@ class OpenRouterClient:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
 
-        self._client = httpx.Client(
+        self._client = httpx.AsyncClient(
             timeout=timeout,
             headers={
                 "Authorization": f"Bearer {self.api_key}",
@@ -58,25 +58,25 @@ class OpenRouterClient:
             }
         )
 
-    def __enter__(self) -> "OpenRouterClient":
-        """Context manager entry."""
+    async def __aenter__(self) -> "AsyncOpenRouterClient":
+        """Async context manager entry."""
         return self
 
-    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
-        """Context manager exit."""
-        self.close()
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        """Async context manager exit."""
+        await self.close()
 
-    def close(self) -> None:
-        """Close the HTTP client."""
-        self._client.close()
+    async def close(self) -> None:
+        """Close the async HTTP client."""
+        await self._client.aclose()
 
-    def _make_request(
+    async def _make_request(
         self,
         method: str,
         endpoint: str,
         json_data: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Make a request to the OpenRouter API.
+        """Make an async request to the OpenRouter API.
 
         Args:
             method: HTTP method (GET, POST, etc.)
@@ -92,7 +92,7 @@ class OpenRouterClient:
         url = f"{self.base_url}/{endpoint.lstrip('/')}"
 
         try:
-            response = self._client.request(method, url, json=json_data)
+            response = await self._client.request(method, url, json=json_data)
 
             if response.status_code == 401:
                 raise AuthenticationError("Invalid API key")
@@ -116,7 +116,7 @@ class OpenRouterClient:
         except httpx.RequestError as e:
             raise OpenRouterError(f"Request failed: {str(e)}")
 
-    def chat_completion(
+    async def chat_completion(
         self,
         messages: Sequence[ChatMessage | dict[str, Any]],
         model: str,
@@ -126,7 +126,7 @@ class OpenRouterClient:
         stream: bool = False,
         **kwargs: Any,
     ) -> ChatCompletion:
-        """Create a chat completion.
+        """Create an async chat completion.
 
         Args:
             messages: List of messages in the conversation
@@ -168,13 +168,13 @@ class OpenRouterClient:
             data["stream"] = stream
 
         try:
-            response_data = self._make_request("POST", "/chat/completions", data)
+            response_data = await self._make_request("POST", "/chat/completions", data)
             return ChatCompletion(**response_data)
         except ValidationError as e:
             raise ValidationErr(f"Invalid response data: {str(e)}")
 
-    def get_models(self) -> Model:
-        """Get available models.
+    async def get_models(self) -> Model:
+        """Get available models asynchronously.
 
         Returns:
             Model object containing list of available models
@@ -183,13 +183,13 @@ class OpenRouterClient:
             OpenRouterError: For API errors
         """
         try:
-            response_data = self._make_request("GET", "/models")
+            response_data = await self._make_request("GET", "/models")
             return Model(**response_data)
         except ValidationError as e:
             raise ValidationErr(f"Invalid response data: {str(e)}")
 
-    def get_balance(self) -> Credits:
-        """Get account balance and credits information.
+    async def get_balance(self) -> Credits:
+        """Get account balance and credits information asynchronously.
 
         Returns:
             Credits object containing balance and usage information
@@ -198,19 +198,19 @@ class OpenRouterClient:
             OpenRouterError: For API errors
         """
         try:
-            response_data = self._make_request("GET", "/credits")
+            response_data = await self._make_request("GET", "/credits")
             return Credits(**response_data)
         except ValidationError as e:
             raise ValidationErr(f"Invalid response data: {str(e)}")
 
-    def simple_completion(
+    async def simple_completion(
         self,
         prompt: str,
         model: str = "anthropic/claude-3.5-sonnet",
         max_tokens: int | None = None,
         temperature: float | None = None,
     ) -> str:
-        """Simple text completion method for convenience.
+        """Simple async text completion method for convenience.
 
         Args:
             prompt: The text prompt
@@ -222,7 +222,7 @@ class OpenRouterClient:
             The completion text
         """
         messages = [ChatMessage(role="user", content=prompt)]
-        completion = self.chat_completion(
+        completion = await self.chat_completion(
             messages=messages,
             model=model,
             max_tokens=max_tokens,
@@ -230,7 +230,7 @@ class OpenRouterClient:
         )
         return completion.content or ""
 
-    def chat_completion_stream(
+    async def chat_completion_stream(
         self,
         messages: Sequence[ChatMessage | dict[str, Any]],
         model: str,
@@ -238,8 +238,8 @@ class OpenRouterClient:
         temperature: float | None = None,
         top_p: float | None = None,
         **kwargs: Any,
-    ) -> Iterator[StreamChunk]:
-        """Create a streaming chat completion.
+    ) -> AsyncIterator[StreamChunk]:
+        """Create an async streaming chat completion.
 
         Args:
             messages: List of messages in the conversation
@@ -281,18 +281,19 @@ class OpenRouterClient:
         url = f"{self.base_url}/chat/completions"
 
         try:
-            with self._client.stream("POST", url, json=data) as response:
+            async with self._client.stream("POST", url, json=data) as response:
                 if response.status_code == 401:
                     raise AuthenticationError("Invalid API key")
                 elif response.status_code == 429:
                     raise RateLimitError("Rate limit exceeded")
                 elif response.status_code >= 400:
-                    error_detail = response.text
+                    error_detail = await response.aread()
                     raise APIError(
-                        f"API error: {error_detail}", status_code=response.status_code
+                        f"API error: {error_detail.decode()}", 
+                        status_code=response.status_code
                     )
 
-                for line in response.iter_lines():
+                async for line in response.aiter_lines():
                     if line.startswith("data: "):
                         data_str = line[6:]  # Remove "data: " prefix
                         
@@ -307,16 +308,16 @@ class OpenRouterClient:
                             continue
 
         except httpx.RequestError as e:
-            raise OpenRouterError(f"Streaming request failed: {str(e)}")
+            raise OpenRouterError(f"Async streaming request failed: {str(e)}")
 
-    def simple_completion_stream(
+    async def simple_completion_stream(
         self,
         prompt: str,
         model: str = "anthropic/claude-3.5-sonnet",
         max_tokens: int | None = None,
         temperature: float | None = None,
-    ) -> Iterator[str]:
-        """Simple streaming text completion method for convenience.
+    ) -> AsyncIterator[str]:
+        """Simple async streaming text completion method for convenience.
 
         Args:
             prompt: The text prompt
@@ -329,7 +330,7 @@ class OpenRouterClient:
         """
         messages = [ChatMessage(role="user", content=prompt)]
         
-        for chunk in self.chat_completion_stream(
+        async for chunk in self.chat_completion_stream(
             messages=messages,
             model=model,
             max_tokens=max_tokens,
@@ -337,4 +338,3 @@ class OpenRouterClient:
         ):
             if chunk.content:
                 yield chunk.content
-

@@ -5,6 +5,7 @@ A Python client library for interacting with OpenRouter AI models.
 
 __version__ = "0.1.0"
 
+from .client.async_client import AsyncOpenRouterClient
 from .client.openrouter_client import OpenRouterClient
 from .exceptions.errors import APIError, AuthenticationError, OpenRouterError
 from .models.balance import Credits, CreditsData
@@ -12,6 +13,7 @@ from .models.chat import ChatCompletion, ChatCompletionChoice, ChatMessage
 
 __all__ = [
     "OpenRouterClient",
+    "AsyncOpenRouterClient",
     "ChatMessage",
     "ChatCompletion",
     "ChatCompletionChoice",
